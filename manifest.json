@@ -1,7 +1,7 @@
 {
   "name": "KodaSchool",
   "short_name": "KodaSchool",
-  "description": "Plateforme d’apprentissage pour réussir le BEPC",
+  "description": "Plateforme d’apprentissage pour réussir a son examen",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
