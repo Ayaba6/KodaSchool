@@ -5,7 +5,6 @@ import {
   ChevronUp, PlayCircle, CheckCircle2, XCircle, HelpCircle 
 } from "lucide-react";
 import { supabase } from "../services/supabaseClient";
-import ReactPlayer from "react-player";
 
 export default function ModulePage() {
   const { programmeId } = useParams();
@@ -13,7 +12,20 @@ export default function ModulePage() {
   const [loading, setLoading] = useState(true);
   const [openModuleId, setOpenModuleId] = useState(null);
   const [selectedLecon, setSelectedLecon] = useState(null);
-  const [quizState, setQuizState] = useState({ answered: false, selectedOption: null });
+  
+  // CORRECTION : État du quiz indépendant par question
+  // Format : { indexQuestion: "OptionChoisie" }
+  const [quizAnswers, setQuizAnswers] = useState({});
+
+  /* ================= LECTURE VIDÉO ROBUSTE ================= */
+  const getYouTubeEmbedUrl = (url) => {
+    if (!url) return null;
+    const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w-]{11})/);
+    if (videoIdMatch && videoIdMatch[1]) {
+      return `https://www.youtube.com/embed/${videoIdMatch[1]}?rel=0&modestbranding=1`;
+    }
+    return null;
+  };
 
   const fetchProgramme = useCallback(async () => {
     setLoading(true);
@@ -27,11 +39,12 @@ export default function ModulePage() {
       console.error("Erreur:", error);
     } else {
       setProgramme(data);
-      // Ouvrir le premier module et la première leçon par défaut
       if (data.modules?.length > 0) {
-        setOpenModuleId(data.modules[0].id);
-        if (data.modules[0].lecons?.length > 0) {
-          setSelectedLecon(data.modules[0].lecons[0]);
+        // Trier les modules par ID ou ordre si nécessaire
+        const sortedModules = data.modules.sort((a, b) => a.id - b.id);
+        setOpenModuleId(sortedModules[0].id);
+        if (sortedModules[0].lecons?.length > 0) {
+          setSelectedLecon(sortedModules[0].lecons.sort((a,b) => a.id - b.id)[0]);
         }
       }
     }
@@ -42,13 +55,8 @@ export default function ModulePage() {
     fetchProgramme();
   }, [fetchProgramme]);
 
-  const handleQuizClick = (option) => {
-    if (quizState.answered) return; // Empêcher de changer après réponse
-    setQuizState({ answered: true, selectedOption: option });
-  };
-
   if (loading) return (
-    <div className="flex items-center justify-center h-screen animate-pulse text-slate-400">
+    <div className="flex items-center justify-center h-screen text-slate-400">
       Chargement de votre parcours...
     </div>
   );
@@ -62,9 +70,15 @@ export default function ModulePage() {
     </div>
   );
 
+  const exercices = selectedLecon?.exercice
+    ? (Array.isArray(selectedLecon.exercice) ? selectedLecon.exercice : selectedLecon.exercice.split("||"))
+    : [];
+
+  const embedUrl = getYouTubeEmbedUrl(selectedLecon?.video_url);
+
   return (
     <div className="flex flex-col h-screen bg-slate-50">
-      {/* Top Navigation Bar */}
+      {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between shrink-0">
         <div className="flex items-center gap-4">
           <Link to="/student/programmes" className="p-2 hover:bg-slate-100 rounded-full transition-colors">
@@ -72,22 +86,17 @@ export default function ModulePage() {
           </Link>
           <h1 className="text-lg font-bold text-slate-800">{programme.titre}</h1>
         </div>
-        <div className="hidden md:block text-sm text-slate-500 font-medium">
-          Progression : {programme.modules?.length} Modules
-        </div>
       </header>
 
       <div className="flex flex-1 overflow-hidden">
-        {/* Sidebar : Navigation du cours */}
+        {/* SIDEBAR */}
         <aside className="w-80 bg-white border-r border-slate-200 overflow-y-auto hidden md:block">
           <div className="p-4 space-y-3">
-            {programme.modules?.map((module, idx) => (
+            {programme.modules?.sort((a,b) => a.id - b.id).map((module, idx) => (
               <div key={module.id} className="border border-slate-100 rounded-xl overflow-hidden">
                 <button
                   onClick={() => setOpenModuleId(openModuleId === module.id ? null : module.id)}
-                  className={`w-full flex items-center justify-between p-4 text-left transition-all ${
-                    openModuleId === module.id ? "bg-indigo-50" : "hover:bg-slate-50"
-                  }`}
+                  className={`w-full flex items-center justify-between p-4 text-left transition-all ${openModuleId === module.id ? "bg-indigo-50" : "hover:bg-slate-50"}`}
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xs font-bold text-indigo-400">0{idx + 1}</span>
@@ -98,12 +107,12 @@ export default function ModulePage() {
 
                 {openModuleId === module.id && (
                   <div className="bg-white py-2 border-t border-slate-50">
-                    {module.lecons?.map((lecon) => (
+                    {module.lecons?.sort((a,b) => a.id - b.id).map((lecon) => (
                       <button
                         key={lecon.id}
                         onClick={() => {
                           setSelectedLecon(lecon);
-                          setQuizState({ answered: false, selectedOption: null });
+                          setQuizAnswers({}); // Reset les réponses quand on change de leçon
                         }}
                         className={`w-full flex items-center gap-3 px-6 py-3 text-sm transition-colors ${
                           selectedLecon?.id === lecon.id 
@@ -122,7 +131,7 @@ export default function ModulePage() {
           </div>
         </aside>
 
-        {/* Zone de contenu principale */}
+        {/* CONTENU PRINCIPAL */}
         <main className="flex-1 overflow-y-auto bg-white">
           {selectedLecon ? (
             <div className="max-w-4xl mx-auto px-6 py-10">
@@ -131,65 +140,87 @@ export default function ModulePage() {
                 <h2 className="text-3xl font-extrabold text-slate-900 mt-2">{selectedLecon.titre}</h2>
               </div>
 
-              {/* Vidéo Player Pro */}
-              {selectedLecon.video_url && (
+              {/* ZONE VIDÉO */}
+              {embedUrl ? (
                 <div className="relative pt-[56.25%] rounded-2xl overflow-hidden shadow-2xl bg-black mb-10 border border-slate-200">
-                  <ReactPlayer
-                    url={selectedLecon.video_url}
-                    controls
-                    width="100%"
-                    height="100%"
-                    className="absolute top-0 left-0"
+                  <iframe
+                    src={embedUrl}
+                    title={selectedLecon.titre}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="absolute top-0 left-0 w-full h-full"
                   />
+                </div>
+              ) : selectedLecon.video_url && (
+                <div className="p-4 bg-amber-50 text-amber-700 rounded-xl mb-10 text-sm border border-amber-200">
+                  Format de lien vidéo non supporté. Utilisez un lien YouTube standard.
                 </div>
               )}
 
-              <div className="grid grid-cols-1 gap-8">
-                {/* Quiz interactif */}
-                {selectedLecon.quiz && (
-                  <div className="bg-slate-50 rounded-2xl p-8 border border-slate-200">
-                    <div className="flex items-center gap-2 mb-6">
+              <div className="space-y-12">
+                {/* SECTION QUIZ (CORRIGÉE) */}
+                {selectedLecon.quiz && Array.isArray(selectedLecon.quiz) && selectedLecon.quiz.length > 0 && (
+                  <div className="bg-slate-50 rounded-3xl p-8 border border-slate-200 shadow-sm">
+                    <div className="flex items-center gap-2 mb-8">
                       <HelpCircle className="text-indigo-500" />
-                      <h4 className="font-bold text-slate-800 text-lg">Vérifiez vos connaissances</h4>
+                      <h4 className="font-bold text-slate-800 text-lg">Quiz de révision</h4>
                     </div>
-                    <p className="text-slate-700 mb-6 font-medium">{selectedLecon.quiz.question}</p>
-                    <div className="grid gap-3">
-                      {selectedLecon.quiz.options.map((opt) => {
-                        const isCorrect = opt === selectedLecon.quiz.answer;
-                        const isSelected = quizState.selectedOption === opt;
-                        
-                        let buttonStyle = "bg-white border-slate-200 text-slate-700 hover:border-indigo-300";
-                        if (quizState.answered) {
-                          if (isCorrect) buttonStyle = "bg-green-100 border-green-500 text-green-700 shadow-sm";
-                          else if (isSelected) buttonStyle = "bg-red-100 border-red-500 text-red-700";
-                          else buttonStyle = "bg-white border-slate-100 text-slate-400 opacity-60";
-                        }
 
-                        return (
-                          <button
-                            key={opt}
-                            disabled={quizState.answered}
-                            onClick={() => handleQuizClick(opt)}
-                            className={`flex items-center justify-between w-full p-4 rounded-xl border-2 text-left transition-all font-medium ${buttonStyle}`}
-                          >
-                            {opt}
-                            {quizState.answered && isCorrect && <CheckCircle2 size={20} />}
-                            {quizState.answered && isSelected && !isCorrect && <XCircle size={20} />}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {selectedLecon.quiz.map((q, i) => {
+                      const selectedOption = quizAnswers[i];
+                      const isAnswered = selectedOption !== undefined;
+
+                      return (
+                        <div key={i} className="mb-10 last:mb-0">
+                          <p className="text-slate-800 mb-4 font-semibold">
+                            {i + 1}. {q.question}
+                          </p>
+                          <div className="grid gap-3">
+                            {q.options.map((opt) => {
+                              const isCorrect = opt === q.answer;
+                              const isSelected = selectedOption === opt;
+                              
+                              let style = "bg-white border-slate-200 text-slate-700 hover:border-indigo-300";
+                              
+                              if (isAnswered) {
+                                if (isCorrect) style = "bg-green-100 border-green-500 text-green-700 shadow-sm";
+                                else if (isSelected) style = "bg-red-100 border-red-500 text-red-700";
+                                else style = "bg-white border-slate-100 text-slate-400 opacity-60";
+                              }
+
+                              return (
+                                <button
+                                  key={opt}
+                                  disabled={isAnswered}
+                                  onClick={() => setQuizAnswers(prev => ({ ...prev, [i]: opt }))}
+                                  className={`flex items-center justify-between w-full p-4 rounded-xl border-2 text-left transition-all font-medium ${style}`}
+                                >
+                                  {opt}
+                                  {isAnswered && isCorrect && <CheckCircle2 size={20} className="text-green-600" />}
+                                  {isAnswered && isSelected && !isCorrect && <XCircle size={20} className="text-red-600" />}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
-                {/* Exercices / Ressources */}
-                {selectedLecon.exercice && (
-                  <div className="bg-indigo-50 rounded-2xl p-8 border border-indigo-100">
-                    <h4 className="flex items-center gap-2 font-bold text-indigo-900 mb-4 uppercase text-sm tracking-widest">
-                      <FileText size={18} /> Travaux Pratiques
+                {/* SECTION EXERCICES */}
+                {exercices.length > 0 && (
+                  <div className="bg-white rounded-2xl border border-slate-100">
+                    <h4 className="flex items-center gap-2 font-bold text-slate-900 mb-4 uppercase text-xs tracking-widest opacity-50">
+                      <FileText size={16} /> Contenu & Exercices
                     </h4>
-                    <div className="prose prose-indigo text-slate-700">
-                      {selectedLecon.exercice}
+                    <div className="space-y-6">
+                      {exercices.map((ex, idx) => (
+                        <div key={idx} className="p-6 bg-slate-50 rounded-2xl text-slate-700 leading-relaxed whitespace-pre-wrap border border-slate-200">
+                          {ex}
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -197,8 +228,8 @@ export default function ModulePage() {
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center h-full text-slate-400">
-              <BookOpen size={48} className="mb-4 opacity-20" />
-              <p>Sélectionnez une leçon dans le menu de gauche pour commencer.</p>
+              <BookOpen size={48} className="mb-4 opacity-10" />
+              <p>Sélectionnez une leçon pour commencer</p>
             </div>
           )}
         </main>
