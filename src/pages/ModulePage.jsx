@@ -21,7 +21,6 @@ export default function ModulePage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [progress, setProgress] = useState({});
 
-  /* ================= PROGRESSION ================= */
   const STORAGE_KEY = `progress_${programmeId}`;
 
   const loadProgress = () => {
@@ -35,7 +34,6 @@ export default function ModulePage() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
   };
 
-  /* ================= VIDEO ================= */
   const getYouTubeEmbedUrl = (url) => {
     if (!url) return null;
     const match = url.match(
@@ -44,7 +42,6 @@ export default function ModulePage() {
     return match ? `https://www.youtube.com/embed/${match[1]}?rel=0` : null;
   };
 
-  /* ================= FETCH ================= */
   const fetchProgramme = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
@@ -84,7 +81,6 @@ export default function ModulePage() {
     return <div className="text-center mt-20">Programme introuvable</div>;
   }
 
-  /* ================= LEÇONS ================= */
   const allLecons = programme.modules.flatMap(m =>
     m.lecons.sort((a, b) => a.id - b.id)
   );
@@ -122,9 +118,7 @@ export default function ModulePage() {
         ${sidebarOpen ? "w-80" : "w-0 overflow-hidden"}`}
       >
         <div className="w-80 overflow-y-auto">
-          <div className="p-4 border-b font-bold">
-            {programme.titre}
-          </div>
+          <div className="p-4 border-b font-bold">{programme.titre}</div>
 
           {programme.modules.map(module => (
             <div key={module.id} className="border-b">
@@ -146,9 +140,7 @@ export default function ModulePage() {
                       disabled={locked}
                       onClick={() => setSelectedLecon(lecon)}
                       className={`w-full px-6 py-3 text-sm flex justify-between items-center
-                        ${locked
-                          ? "text-slate-400"
-                          : "hover:bg-indigo-50"}`}
+                        ${locked ? "text-slate-400" : "hover:bg-indigo-50"}`}
                     >
                       {lecon.titre}
                       {progress[lecon.id] ? (
@@ -181,9 +173,7 @@ export default function ModulePage() {
               <Menu />
             </button>
 
-            <h1 className="font-bold text-lg truncate">
-              {selectedLecon?.titre}
-            </h1>
+            <h1 className="font-bold text-lg truncate">{selectedLecon?.titre}</h1>
           </div>
 
           <button
@@ -193,6 +183,63 @@ export default function ModulePage() {
             Chapitres
           </button>
         </header>
+
+        {/* ===== SIDEBAR MOBILE ===== */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 z-50 bg-black/50 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          >
+            <aside
+              className="absolute left-0 top-0 h-full w-64 bg-white shadow-lg overflow-y-auto"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-4 border-b flex justify-between items-center font-bold">
+                {programme.titre}
+                <button onClick={() => setMobileMenuOpen(false)}>
+                  <X />
+                </button>
+              </div>
+
+              {programme.modules.map(module => (
+                <div key={module.id} className="border-b">
+                  <button
+                    onClick={() =>
+                      setOpenModuleId(openModuleId === module.id ? null : module.id)
+                    }
+                    className="w-full p-4 text-left font-semibold hover:bg-slate-50"
+                  >
+                    {module.titre}
+                  </button>
+
+                  {openModuleId === module.id &&
+                    module.lecons.map(lecon => {
+                      const locked = !isUnlocked(lecon.id);
+                      return (
+                        <button
+                          key={lecon.id}
+                          disabled={locked}
+                          onClick={() => {
+                            setSelectedLecon(lecon);
+                            setMobileMenuOpen(false);
+                          }}
+                          className={`w-full px-6 py-3 text-sm flex justify-between items-center
+                            ${locked ? "text-slate-400" : "hover:bg-indigo-50"}`}
+                        >
+                          {lecon.titre}
+                          {progress[lecon.id] ? (
+                            <CheckCircle2 size={16} className="text-green-500" />
+                          ) : locked ? (
+                            <Lock size={16} />
+                          ) : null}
+                        </button>
+                      );
+                    })}
+                </div>
+              ))}
+            </aside>
+          </div>
+        )}
 
         {/* ===== LEÇON ===== */}
         <main className="flex-1 overflow-y-auto">
@@ -214,7 +261,6 @@ export default function ModulePage() {
               </div>
             )}
 
-            {/* ===== ACTIONS ===== */}
             {!progress[selectedLecon.id] ? (
               <button
                 onClick={() => saveProgress(selectedLecon.id)}
