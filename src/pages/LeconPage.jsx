@@ -3,7 +3,9 @@ import { useParams, Link } from "react-router-dom";
 import { supabase } from "../services/supabaseClient";
 import { ArrowLeft, PlayCircle, BookOpen, CheckCircle } from "lucide-react";
 
-// Composant vidéo robuste pour YouTube et MP4
+/* =========================================================
+   Composant Vidéo (YouTube + MP4)
+========================================================= */
 function VideoPlayer({ url }) {
   if (!url) {
     return (
@@ -14,47 +16,46 @@ function VideoPlayer({ url }) {
     );
   }
 
-  // Logique d'extraction de l'ID YouTube améliorée
   let embedUrl = null;
-  const videoIdMatch = url.match(/(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=|\/user\/\S+|\/ytscreeningroom\?v=))([\w-]{11})/);
-  
-  if (videoIdMatch && videoIdMatch[1]) {
-    embedUrl = `https://www.youtube.com/embed/${videoIdMatch[1]}?rel=0&modestbranding=1`;
+  const match = url.match(
+    /(?:youtu\.be\/|youtube\.com(?:\/embed\/|\/v\/|\/watch\?v=))([\w-]{11})/
+  );
+
+  if (match && match[1]) {
+    embedUrl = `https://www.youtube.com/embed/${match[1]}?rel=0`;
   }
 
-  // Si c'est un fichier MP4 direct
   if (url.toLowerCase().endsWith(".mp4")) {
     return (
       <div className="rounded-2xl overflow-hidden shadow-lg mb-6 bg-black">
-        <video controls width="100%" src={url} className="aspect-video" />
+        <video controls className="aspect-video w-full" src={url} />
       </div>
     );
   }
 
-  // Si c'est une URL YouTube valide
   if (embedUrl) {
     return (
-      <div className="relative aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-black border border-slate-200">
+      <div className="relative aspect-video rounded-2xl overflow-hidden shadow-lg mb-8 bg-black">
         <iframe
           src={embedUrl}
           title="Vidéo de la leçon"
-          frameBorder="0"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          className="absolute inset-0 w-full h-full"
           allowFullScreen
-          className="absolute top-0 left-0 w-full h-full"
         />
       </div>
     );
   }
 
-  // Fallback si l'URL ne correspond à rien de connu
   return (
     <div className="p-4 bg-red-50 text-red-600 rounded-xl mb-6 text-sm">
-      Le format du lien vidéo n'est pas supporté.
+      Lien vidéo non supporté
     </div>
   );
 }
 
+/* =========================================================
+   Page Leçon
+========================================================= */
 export default function LeconPage() {
   const { leconId } = useParams();
   const [lecon, setLecon] = useState(null);
@@ -70,9 +71,8 @@ export default function LeconPage() {
         .eq("id", leconId)
         .single();
 
-      if (error) {
-        console.error(error.message);
-      } else {
+      if (error) console.error(error);
+      else {
         setLecon({
           ...data,
           exercices: data.exercice ? data.exercice.split("||") : [],
@@ -84,156 +84,144 @@ export default function LeconPage() {
     if (leconId) fetchLecon();
   }, [leconId]);
 
-  const handleAnswerChange = (qIndex, value) => {
-    setAnswers(prev => ({ ...prev, [qIndex]: value }));
+  const handleAnswerChange = (i, value) => {
+    setAnswers((prev) => ({ ...prev, [i]: value }));
   };
 
   const handleSubmitQuiz = () => {
     if (Object.keys(answers).length < lecon.quiz.length) {
-      alert("Veuillez répondre à toutes les questions avant de soumettre.");
+      alert("Répondez à toutes les questions.");
       return;
     }
     setSubmitted(true);
-    window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-indigo-600"></div>
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin h-10 w-10 border-2 border-indigo-600 border-t-transparent rounded-full" />
       </div>
     );
   }
 
-  if (!lecon) {
-    return <div className="p-8 text-center">Leçon introuvable.</div>;
-  }
+  if (!lecon) return <div className="p-6 text-center">Leçon introuvable</div>;
 
   return (
     <div className="min-h-screen bg-slate-50 pb-12">
       <div className="max-w-4xl mx-auto p-4 md:p-8">
-        
-        {/* Navigation */}
-        <Link 
-          to="/student/programmes" 
-          className="inline-flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors mb-6"
+
+        {/* Retour */}
+        <Link
+          to="/student/programmes"
+          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-indigo-600 mb-6"
         >
           <ArrowLeft size={16} /> Retour aux programmes
         </Link>
 
-        {/* Header */}
-        <h1 className="text-3xl font-extrabold text-slate-900 mb-6">{lecon.titre}</h1>
+        {/* Titre */}
+        <h1 className="text-3xl font-extrabold text-slate-900 mb-6">
+          {lecon.titre}
+        </h1>
 
-        {/* LECTEUR VIDÉO */}
+        {/* Vidéo */}
         <VideoPlayer url={lecon.video_url} />
 
         <div className="grid lg:grid-cols-3 gap-8">
-          
-          {/* Contenu principal : Exercices et Texte */}
+
+          {/* CONTENU */}
           <div className="lg:col-span-2 space-y-6">
-            <div className="bg-white p-6 md:p-8 rounded-3xl shadow-sm border border-slate-200">
+            <div className="bg-white p-6 md:p-8 rounded-3xl border shadow-sm">
               <div className="flex items-center gap-2 mb-6 text-emerald-600 font-bold">
                 <BookOpen size={20} /> Contenu de la leçon
               </div>
-              
-              {lecon.exercices && lecon.exercices.length > 0 ? (
+
+              {lecon.exercices.length > 0 ? (
                 <div className="space-y-8">
                   {lecon.exercices.map((ex, i) => (
-                    <div key={i} className="prose prose-slate max-w-none">
-                      <h3 className="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
-                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-100 text-emerald-700 text-xs">
+                    <div key={i} className="space-y-3">
+                      <h3 className="text-lg font-bold flex items-center gap-2">
+                        <span className="w-6 h-6 flex items-center justify-center rounded-full bg-emerald-100 text-emerald-700 text-xs">
                           {i + 1}
                         </span>
-                        Section {i + 1}
+                        Chapitre {i + 1}
                       </h3>
-                      <p className="text-slate-600 leading-relaxed whitespace-pre-wrap">
+
+                      <p className="text-slate-600 leading-relaxed whitespace-pre-wrap break-words">
                         {ex}
                       </p>
                     </div>
                   ))}
                 </div>
               ) : (
-                <p className="text-slate-400 italic">Aucun texte additionnel pour cette leçon.</p>
+                <p className="italic text-slate-400">
+                  Aucun contenu pour cette leçon
+                </p>
               )}
             </div>
           </div>
 
-          {/* Sidebar : Quiz */}
+          {/* QUIZ */}
           <div className="lg:col-span-1">
             {lecon.quiz?.length > 0 && (
-              <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-200 sticky top-8">
+              <div className="bg-white p-6 rounded-3xl border shadow-sm lg:sticky top-8">
                 <div className="flex items-center gap-2 mb-6 text-amber-500 font-bold">
-                  <CheckCircle size={20} /> Quiz Rapide
+                  <CheckCircle size={20} /> Quiz
                 </div>
 
                 <div className="space-y-8">
                   {lecon.quiz.map((q, i) => (
                     <div key={i} className="space-y-3">
-                      <p className="font-bold text-slate-800 leading-tight">
-                        {i + 1}. {q.question}
-                      </p>
-                      <div className="flex flex-col gap-2">
-                        {q.options.map((opt, j) => {
-                          const isCorrect = opt === q.answer;
-                          const isSelected = answers[i] === opt;
-                          
-                          let bgClass = "bg-slate-50 border-slate-200 hover:border-indigo-300";
-                          if (submitted) {
-                            if (isCorrect) bgClass = "bg-green-100 border-green-500 text-green-700";
-                            else if (isSelected) bgClass = "bg-red-100 border-red-500 text-red-700";
-                            else bgClass = "bg-slate-50 border-slate-100 opacity-50";
-                          } else if (isSelected) {
-                            bgClass = "bg-indigo-50 border-indigo-500 text-indigo-700";
-                          }
+                      <p className="font-bold">{i + 1}. {q.question}</p>
 
-                          return (
-                            <label
-                              key={j}
-                              className={`px-4 py-3 border-2 rounded-xl cursor-pointer transition-all flex items-center gap-3 text-sm font-medium ${bgClass}`}
-                            >
-                              <input
-                                type="radio"
-                                name={`quiz-${i}`}
-                                value={opt}
-                                disabled={submitted}
-                                checked={isSelected}
-                                onChange={(e) => handleAnswerChange(i, e.target.value)}
-                                className="hidden"
-                              />
-                              <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center ${isSelected ? 'border-indigo-500' : 'border-slate-300'}`}>
-                                {isSelected && <div className="w-2 h-2 rounded-full bg-indigo-500" />}
-                              </div>
-                              {opt}
-                            </label>
-                          );
-                        })}
-                      </div>
+                      {q.options.map((opt, j) => {
+                        const isSelected = answers[i] === opt;
+                        const isCorrect = opt === q.answer;
+
+                        let style = "bg-slate-50 border";
+                        if (submitted) {
+                          if (isCorrect) style = "bg-green-100 border-green-500";
+                          else if (isSelected) style = "bg-red-100 border-red-500";
+                        } else if (isSelected) {
+                          style = "bg-indigo-50 border-indigo-500";
+                        }
+
+                        return (
+                          <label
+                            key={j}
+                            className={`block p-3 rounded-xl border-2 cursor-pointer text-sm ${style}`}
+                          >
+                            <input
+                              type="radio"
+                              hidden
+                              checked={isSelected}
+                              disabled={submitted}
+                              onChange={() => handleAnswerChange(i, opt)}
+                            />
+                            {opt}
+                          </label>
+                        );
+                      })}
                     </div>
                   ))}
 
                   {!submitted ? (
                     <button
                       onClick={handleSubmitQuiz}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 shadow-lg shadow-indigo-100 transition-all active:scale-95"
+                      className="w-full py-3 bg-indigo-600 text-white rounded-2xl font-bold"
                     >
-                      Vérifier mes réponses
+                      Vérifier
                     </button>
                   ) : (
-                    <div className="p-4 bg-indigo-50 rounded-2xl text-center">
-                      <p className="text-indigo-700 font-bold">Quiz terminé !</p>
-                      <p className="text-indigo-600 text-xs mt-1">Les bonnes réponses sont en vert.</p>
-                      <button 
-                        onClick={() => { setSubmitted(false); setAnswers({}); }}
-                        className="mt-4 text-xs font-bold text-indigo-400 hover:underline"
-                      >
-                        Recommencer le quiz
-                      </button>
+                    <div className="text-center text-indigo-700 font-bold">
+                      Quiz terminé 🎉
                     </div>
                   )}
                 </div>
               </div>
             )}
           </div>
+
         </div>
       </div>
     </div>
